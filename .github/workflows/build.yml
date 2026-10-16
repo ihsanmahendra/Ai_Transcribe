@@ -1,0 +1,49 @@
+name: Build macOS app
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versi toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Cache dependensi Swift
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Build app + DMG (Apple Silicon & Intel)
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: ./build-app.sh --universal --dmg
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI-Transcriber
+          path: build/*.dmg
+          if-no-files-found: error
+
+      - name: Rilis GitHub (saat push tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/*.dmg
+          generate_release_notes: true
