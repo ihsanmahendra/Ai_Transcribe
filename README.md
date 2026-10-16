@@ -8,7 +8,7 @@ Pemrosesan berjalan **100% di perangkat** lewat [WhisperKit](https://github.com/
 
 - Tarik & lepas file (MP3, M4A, WAV, FLAC, AAC, MP4, MOV) atau buka lewat ⌘O
 - Pilih model: Tiny, Base, Small, Large v3 Turbo (diunduh otomatis saat pertama dipakai). Setelah itu model dimuat langsung dari disk, jadi transkripsi tetap jalan tanpa internet
-- File panjang (lebih dari 10 menit) dibaca bertahap supaya pemakaian memori tetap rendah
+- Progres transkripsi dalam persen beserta perkiraan sisa waktu. Hingga 16 potongan audio diproses paralel
 - **Mode "Indonesia + Inggris (campuran)"**: deteksi bahasa hanya memilih antara Indonesia dan Inggris, dan skor Melayu/Jawa/Sunda dihitung sebagai Indonesia (Whisper sering salah mengira bahasa Indonesia sebagai Melayu). Prompt gaya campuran membuat kata Inggris di tengah kalimat tetap ditulis apa adanya (*meeting*, *deadline*, *project-nya*)
 - **Kosakata & istilah**: daftar nama, merek, dan singkatan agar ejaannya benar. Daftar yang sama juga dipakai sebagai glosarium terjemahan
 - **Terjemahan Indonesia ⇄ Inggris**, ditampilkan di bawah teks asli:

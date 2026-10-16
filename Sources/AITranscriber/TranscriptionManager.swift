@@ -19,6 +19,9 @@ final class TranscriptionManager: ObservableObject {
     @Published private(set) var hasTranslation = false
     @Published var liveText = ""
     @Published var status: TranscriptionStatus = .idle
+    /// Progres transkripsi 0...1 dan perkiraan sisa waktu (detik), diperbarui 2x per detik.
+    @Published private(set) var progressFraction: Double = 0
+    @Published private(set) var remainingSeconds: Double?
     @Published var detectedLanguage: String?
 
     // Pengaturan transkripsi
@@ -54,9 +57,9 @@ final class TranscriptionManager: ObservableObject {
     private var translationJob: Task<Void, Never>?
     private var cancelFlag = CancelFlag()
 
-    /// File lebih panjang dari ini dibaca bertahap agar memori tidak membengkak
-    /// (1 jam audio = ~230 MB sampel float jika dimuat sekaligus).
-    private static let incrementalLoadingThreshold: Double = 10 * 60
+    /// Batas panjang prompt (token). Setiap token prompt diproses decoder satu per satu di
+    /// SETIAP jendela audio 30 detik, jadi prompt panjang membuat transkripsi jauh lebih lambat.
+    private static let maxPromptTokens = 48
 
     init() {
         let defaults = UserDefaults.standard
@@ -135,6 +138,9 @@ final class TranscriptionManager: ObservableObject {
                 options.skipSpecialTokens = true
                 options.withoutTimestamps = false
                 options.chunkingStrategy = .vad
+                // Default WhisperKit mengulang satu jendela hingga 5x bila hasilnya meragukan.
+                // 2x sudah cukup memperbaiki kalimat yang berulang, tanpa memperlambat terlalu banyak.
+                options.temperatureFallbackCount = 2
                 if let decodeLanguage {
                     options.language = decodeLanguage
                     options.usePrefillPrompt = true
@@ -150,13 +156,14 @@ final class TranscriptionManager: ObservableObject {
                 if !promptText.isEmpty, let tokenizer = pipe.tokenizer {
                     let tokens = tokenizer.encode(text: " " + promptText)
                         .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
-                    options.promptTokens = Array(tokens.suffix(200))
+                    // Bagian akhir (kosakata pengguna) yang dipertahankan bila terlalu panjang.
+                    options.promptTokens = Array(tokens.suffix(Self.maxPromptTokens))
                 }
 
-                // 4. File panjang dibaca bertahap untuk menghemat memori.
-                let audioInput = (fileDuration ?? 0) > Self.incrementalLoadingThreshold
-                    ? AudioInputOptions(audioLoadingMode: .incremental)
-                    : AudioInputOptions()
+                // File dimuat utuh: WhisperKit lalu memproses hingga 16 jendela audio secara paralel.
+                // (Mode .incremental memproses jendela satu per satu, jauh lebih lambat.)
+                let progressTask = trackProgress(of: pipe, startedAt: began)
+                defer { progressTask.cancel() }
 
                 let callback = Self.makeProgressCallback(flag: flag) { [weak self] text in
                     Task { @MainActor in
@@ -167,7 +174,6 @@ final class TranscriptionManager: ObservableObject {
 
                 let results = try await pipe.transcribe(
                     audioPath: url.path,
-                    audioInputOptions: audioInput,
                     decodeOptions: options,
                     callback: callback
                 )
@@ -190,6 +196,27 @@ final class TranscriptionManager: ObservableObject {
                 status = .done(seconds: Date().timeIntervalSince(began), language: detected)
             } catch {
                 status = flag.isCancelled ? .cancelled : .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Membaca `WhisperKit.progress` (jumlah jendela audio yang selesai) secara berkala,
+    /// lalu menghitung persentase dan perkiraan sisa waktu.
+    private func trackProgress(of pipe: WhisperKit, startedAt began: Date) -> Task<Void, Never> {
+        progressFraction = 0
+        remainingSeconds = nil
+        return Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard let self, self.status == .transcribing else { return }
+                let fraction = min(max(pipe.progress.fractionCompleted, 0), 1)
+                let elapsed = Date().timeIntervalSince(began)
+                if fraction > self.progressFraction { self.progressFraction = fraction }
+                // Perkiraan baru masuk akal setelah ada progres dan beberapa detik berjalan.
+                if self.progressFraction > 0.03, elapsed > 3 {
+                    let estimate = elapsed / self.progressFraction * (1 - self.progressFraction)
+                    self.remainingSeconds = estimate
+                }
             }
         }
     }
@@ -217,11 +244,11 @@ final class TranscriptionManager: ObservableObject {
         var parts: [String] = []
         switch (mode, resolved) {
         case (LanguageOption.mixedCode, _):
-            parts.append("Oke, jadi di meeting hari ini kita bahas progress project-nya, terus nanti kita review deadline sama budget-nya, ya. So, let's get started.")
+            parts.append("Oke, meeting hari ini bahas progress project-nya, ya.")
         case (_, "id"):
-            parts.append("Halo, selamat datang. Pada kesempatan ini, kita akan membahas beberapa hal penting, ya.")
+            parts.append("Halo, selamat datang. Kita mulai, ya.")
         case (_, "en"):
-            parts.append("Hello, and welcome. Today, we're going to talk about a few important things.")
+            parts.append("Hello, and welcome. Let's get started.")
         default:
             break
         }

@@ -439,13 +439,20 @@ private struct StatusBar: View {
             Text("Mengunduh model \(model)… \(Int(fraction * 100))%")
         case .loadingModel(let model):
             ProgressView().controlSize(.small)
-            Text("Memuat model \(model) (pertama kali bisa agak lama)…")
+            Text("Memuat model \(model)… (pemakaian pertama bisa beberapa menit karena macOS mengoptimasi model untuk chip Anda)")
         case .detectingLanguage:
             ProgressView().controlSize(.small)
             Text("Mendeteksi bahasa (Indonesia/Inggris)…")
         case .transcribing:
-            ProgressView().controlSize(.small)
-            Text("Mentranskripsi…")
+            if manager.progressFraction > 0 {
+                ProgressView(value: manager.progressFraction).frame(width: 120)
+                Text("Mentranskripsi… \(Int(manager.progressFraction * 100))%"
+                     + (manager.remainingSeconds.map { " · sisa ±\(formatClock($0))" } ?? ""))
+                    .monospacedDigit()
+            } else {
+                ProgressView().controlSize(.small)
+                Text("Mentranskripsi…")
+            }
         case .done(let seconds, let language):
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
             Text("Selesai dalam \(String(format: "%.1f", seconds)) detik"
