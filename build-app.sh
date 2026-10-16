@@ -45,7 +45,7 @@ SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version 2>/dev/null || echo 0)"
 # ("duplicate key ... ArgmaxCLI").
 if [[ $UNIVERSAL == 1 ]]; then
     for arch in arm64 x86_64; do
-        step "Kompilasi release untuk $arch… (pertama kali bisa beberapa menit)"
+        step "Kompilasi release untuk ${arch}… (pertama kali bisa beberapa menit)"
         swift build -c release --arch "$arch" --product "$EXECUTABLE"
     done
     BIN_DIR="$BUILD_DIR/universal"
