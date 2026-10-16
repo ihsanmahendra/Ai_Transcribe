@@ -40,12 +40,29 @@ command -v swift >/dev/null || fail "Swift tidak ditemukan. Pasang Xcode dari Ap
 SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version 2>/dev/null || echo 0)"
 [[ "${SDK_VERSION%%.*}" -ge 15 ]] || fail "Butuh SDK macOS 15+ (Xcode 16 atau lebih baru). SDK terpasang: $SDK_VERSION"
 
-ARCH_FLAGS=()
-[[ $UNIVERSAL == 1 ]] && ARCH_FLAGS=(--arch arm64 --arch x86_64)
-
-step "Kompilasi release ${ARCH_FLAGS[*]:-(arsitektur Mac ini)}… (pertama kali bisa beberapa menit)"
-swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
-BIN_DIR="$(swift build -c release ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
+# Build universal dilakukan per arsitektur lalu digabung dengan lipo. `swift build` dengan
+# beberapa --arch sekaligus memakai build system lain yang gagal pada paket WhisperKit 1.x
+# ("duplicate key ... ArgmaxCLI").
+if [[ $UNIVERSAL == 1 ]]; then
+    for arch in arm64 x86_64; do
+        step "Kompilasi release untuk $arch… (pertama kali bisa beberapa menit)"
+        swift build -c release --arch "$arch" --product "$EXECUTABLE"
+    done
+    BIN_DIR="$BUILD_DIR/universal"
+    rm -rf "$BIN_DIR"; mkdir -p "$BIN_DIR"
+    lipo -create \
+        "$(swift build -c release --arch arm64 --show-bin-path)/$EXECUTABLE" \
+        "$(swift build -c release --arch x86_64 --show-bin-path)/$EXECUTABLE" \
+        -output "$BIN_DIR/$EXECUTABLE"
+    # Resource bundle cukup diambil dari salah satu arsitektur.
+    find "$(swift build -c release --arch arm64 --show-bin-path)" -maxdepth 1 -name "*.bundle" \
+        -exec cp -R {} "$BIN_DIR/" \;
+    lipo -info "$BIN_DIR/$EXECUTABLE"
+else
+    step "Kompilasi release… (pertama kali bisa beberapa menit)"
+    swift build -c release --product "$EXECUTABLE"
+    BIN_DIR="$(swift build -c release --show-bin-path)"
+fi
 
 step "Menyusun bundle aplikasi…"
 rm -rf "$APP_DIR"
