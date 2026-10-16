@@ -9,7 +9,8 @@ Pemrosesan berjalan **100% di perangkat** lewat [WhisperKit](https://github.com/
 - Tarik & lepas file (MP3, M4A, WAV, FLAC, AAC, MP4, MOV) atau buka lewat ⌘O
 - Pilih model: Tiny, Base, Small, Large v3 Turbo (diunduh otomatis saat pertama dipakai). Setelah itu model dimuat langsung dari disk, jadi transkripsi tetap jalan tanpa internet
 - Progres transkripsi dalam persen beserta perkiraan sisa waktu. Hingga 16 potongan audio diproses paralel
-- **Mode "Indonesia + Inggris (campuran)"**: deteksi bahasa hanya memilih antara Indonesia dan Inggris, dan skor Melayu/Jawa/Sunda dihitung sebagai Indonesia (Whisper sering salah mengira bahasa Indonesia sebagai Melayu). Prompt gaya campuran membuat kata Inggris di tengah kalimat tetap ditulis apa adanya (*meeting*, *deadline*, *project-nya*)
+- **Mode "Indonesia + Inggris (campuran)"**: bahasa dipilih lewat voting dari beberapa potongan audio di sepanjang file (bukan hanya 30 detik pertama). Skor Melayu/Jawa/Sunda dihitung sebagai Indonesia, karena Whisper sering salah mengira bahasa Indonesia sebagai Melayu. Kata Inggris di tengah kalimat tetap ditulis apa adanya
+- **Pembersih halusinasi**: kata/frasa yang diulang 3x atau lebih dipangkas, segmen kembar dibuang, begitu pula kalimat karangan khas Whisper di bagian hening/musik ("Terima kasih telah menonton", dll.)
 - **Kosakata & istilah**: daftar nama, merek, dan singkatan agar ejaannya benar. Daftar yang sama juga dipakai sebagai glosarium terjemahan
 - **Terjemahan Indonesia ⇄ Inggris**, ditampilkan di bawah teks asli:
   - **Claude AI** (disarankan): menerjemahkan per kelompok dengan konteks kalimat sebelumnya, peka terhadap formal/santai (saya/Anda vs gue/lo), partikel (*sih, dong, kok, deh, lho*), slang, idiom, kata ganti "dia" tanpa gender, campuran bahasa, dan salah dengar ASR. Butuh internet dan API key Anthropic

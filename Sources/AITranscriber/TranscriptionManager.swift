@@ -138,9 +138,10 @@ final class TranscriptionManager: ObservableObject {
                 options.skipSpecialTokens = true
                 options.withoutTimestamps = false
                 options.chunkingStrategy = .vad
-                // Default WhisperKit mengulang satu jendela hingga 5x bila hasilnya meragukan.
-                // 2x sudah cukup memperbaiki kalimat yang berulang, tanpa memperlambat terlalu banyak.
-                options.temperatureFallbackCount = 2
+                // Jendela yang hasilnya berulang-ulang (compression ratio tinggi) atau tidak yakin
+                // diulang dengan temperature lebih tinggi (default WhisperKit: hingga 5x).
+                // Ini pengaman utama terhadap pengulangan kata, jadi tidak dikurangi.
+                options.suppressBlank = true
                 if let decodeLanguage {
                     options.language = decodeLanguage
                     options.usePrefillPrompt = true
@@ -151,8 +152,9 @@ final class TranscriptionManager: ObservableObject {
                     options.detectLanguage = true
                 }
 
-                // 3. Prompt awal: contoh gaya bahasa + kosakata khusus pengguna.
-                let promptText = Self.buildPrompt(mode: language, resolved: decodeLanguage, vocabulary: vocabulary)
+                // 3. Prompt hanya berisi kosakata dari pengguna (jika ada). Whisper cenderung
+                //    menyalin isi prompt ke bagian yang hening, jadi tidak ada kalimat contoh.
+                let promptText = Self.buildPrompt(vocabulary: vocabulary)
                 if !promptText.isEmpty, let tokenizer = pipe.tokenizer {
                     let tokens = tokenizer.encode(text: " " + promptText)
                         .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
@@ -184,11 +186,13 @@ final class TranscriptionManager: ObservableObject {
                 }
 
                 let detected = decodeLanguage ?? results.first?.language
-                segments = results
-                    .flatMap(\.segments)
-                    .map { Segment(start: Double($0.start), end: Double($0.end), text: Self.clean($0.text)) }
-                    .filter { !$0.text.isEmpty }
-                    .sorted { $0.start < $1.start }
+                segments = TranscriptCleaner.clean(results.flatMap(\.segments).map {
+                    TranscriptCleaner.RawSegment(
+                        start: Double($0.start), end: Double($0.end), text: $0.text,
+                        avgLogprob: $0.avgLogprob, noSpeechProb: $0.noSpeechProb,
+                        compressionRatio: $0.compressionRatio
+                    )
+                })
                 transcriptVersion += 1
                 liveText = ""
                 detectedLanguage = detected
@@ -228,38 +232,41 @@ final class TranscriptionManager: ObservableObject {
         if translationStatus.isRunning { translationStatus = .idle }
     }
 
-    /// Deteksi bahasa yang hanya memilih antara Indonesia dan Inggris (membaca 30 detik pertama).
-    /// Whisper sering mengira bahasa Indonesia sebagai Melayu/Jawa/Sunda, jadi skornya digabung.
+    /// Memilih bahasa Indonesia atau Inggris dengan "voting" dari beberapa potongan 30 detik
+    /// yang tersebar di sepanjang file. Mengandalkan 30 detik pertama saja rawan salah
+    /// (intro musik, salam pembuka bahasa Inggris, dll.).
+    /// Whisper sering mengira bahasa Indonesia sebagai Melayu/Jawa/Sunda, jadi semuanya dihitung
+    /// sebagai Indonesia. Bila seri atau ragu, dipilih Indonesia: memaksa bahasa Inggris pada
+    /// audio Indonesia menghasilkan teks kacau, sedangkan sebaliknya relatif aman.
     private func detectIndonesianOrEnglish(pipe: WhisperKit, path: String) async throws -> String {
-        let detection = try await pipe.detectLanguage(audioPath: path)
-        let probs = detection.langProbs
-        let indonesian = LanguageOption.indonesianFamily.reduce(Float(0)) { $0 + (probs[$1] ?? 0) }
-        let english = probs["en"] ?? 0
-        return indonesian >= english ? "id" : "en"
+        let duration = fileDuration ?? 0
+        let positions: [Double] = duration > 120 ? [0.08, 0.3, 0.52, 0.74, 0.92] : [0]
+        var indonesianVotes = 0
+        var englishVotes = 0
+
+        for position in positions {
+            let start = max(0, duration * position - 15)
+            let samples = try AudioProcessor.loadAudioAsFloatArray(
+                fromPath: path, startTime: start, endTime: start + 30
+            )
+            guard samples.count > WhisperKit.sampleRate * 2 else { continue }
+            let detected = try await pipe.detectLangauge(audioArray: samples).language
+            if LanguageOption.indonesianFamily.contains(detected) {
+                indonesianVotes += 1
+            } else if detected == "en" {
+                englishVotes += 1
+            }
+        }
+        return englishVotes > indonesianVotes ? "en" : "id"
     }
 
-    /// Whisper meniru gaya teks pada prompt: ejaan, tanda baca, dan cara menulis
-    /// kata-kata Inggris di tengah kalimat Indonesia. Kosakata membantu nama & istilah.
-    nonisolated private static func buildPrompt(mode: String, resolved: String?, vocabulary: String) -> String {
-        var parts: [String] = []
-        switch (mode, resolved) {
-        case (LanguageOption.mixedCode, _):
-            parts.append("Oke, meeting hari ini bahas progress project-nya, ya.")
-        case (_, "id"):
-            parts.append("Halo, selamat datang. Kita mulai, ya.")
-        case (_, "en"):
-            parts.append("Hello, and welcome. Let's get started.")
-        default:
-            break
-        }
+    /// Prompt berisi daftar istilah dari pengguna agar ejaan nama & istilah benar.
+    nonisolated private static func buildPrompt(vocabulary: String) -> String {
         let terms = vocabulary
             .split(whereSeparator: { $0 == "," || $0.isNewline })
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-        if !terms.isEmpty {
-            parts.append(terms.joined(separator: ", ") + ".")
-        }
-        return parts.joined(separator: " ")
+        return terms.isEmpty ? "" : terms.joined(separator: ", ") + "."
     }
 
     // MARK: - Model
@@ -505,11 +512,5 @@ final class TranscriptionManager: ObservableObject {
                 onFraction(progress.fractionCompleted)
             }
         }
-    }
-
-    nonisolated private static func clean(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: #"<\|[^|]*\|>"#, with: "", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
