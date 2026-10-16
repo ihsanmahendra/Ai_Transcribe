@@ -46,7 +46,8 @@ jobs:
             grep -E '✗|^error:|error: ' build.log | grep -vE ':[0-9]+:[0-9]+: ' | sort -u | head -15 | while IFS= read -r line; do
               echo "::error::${line}"
             done
-            grep -vE '^\[[0-9]+/[0-9]+\] (Compiling|Emitting|Write|Planning)' build.log | tail -40 | while IFS= read -r line; do echo "::warning::${line}"; done
+            tail_log=$(grep -vE '^\[[0-9]+/[0-9]+\] (Compiling|Emitting|Write|Planning)' build.log | tail -60 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::warning title=Akhir log build::${tail_log}"
             exit 1
           fi
 
