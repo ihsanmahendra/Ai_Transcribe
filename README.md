@@ -31,12 +31,12 @@ Hanya teks transkrip yang dikirim ke Anthropic, bukan audionya. Model yang dipak
 
 - macOS 15 (Sequoia) atau lebih baru (dibutuhkan untuk Apple Translate)
 - Mac Apple Silicon (M1/M2/M3/M4) sangat disarankan
-- Xcode 16+ (SDK macOS 15)
+- Xcode 26 atau lebih baru (Xcode 16 tidak bisa: SwiftPM-nya menolak paket WhisperKit 1.x)
 
 ## Memasang sebagai aplikasi Mac
 
 ### Cara 1: Build di Mac sendiri (satu perintah)
-Butuh Xcode 16+ dari App Store (buka sekali untuk menyetujui lisensi).
+Butuh Xcode 26+ dari App Store (buka sekali untuk menyetujui lisensi).
 
 ```bash
 cd AITranscriber
