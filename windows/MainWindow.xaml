@@ -1,0 +1,67 @@
+<Window x:Class="AITranscriber.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AI Transcriber" Width="1000" Height="680" MinWidth="760" MinHeight="500"
+        AllowDrop="True" Drop="OnDrop">
+  <Grid Margin="12">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="300"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+
+    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,12,0">
+      <StackPanel>
+        <Button x:Name="OpenBtn" Content="Buka file audio/video…" Padding="8" Click="OnOpen"/>
+        <TextBlock x:Name="FileLabel" Text="Atau tarik &amp; lepas file ke jendela ini" Margin="0,6,0,12" TextWrapping="Wrap" Foreground="Gray"/>
+
+        <TextBlock Text="Model" FontWeight="SemiBold"/>
+        <ComboBox x:Name="ModelBox" Margin="0,4,0,10"/>
+        <TextBlock Text="Bahasa" FontWeight="SemiBold"/>
+        <ComboBox x:Name="LangBox" Margin="0,4,0,10"/>
+        <TextBlock Text="Kosakata &amp; istilah (pisahkan dengan koma)" FontWeight="SemiBold"/>
+        <TextBox x:Name="VocabBox" Height="70" AcceptsReturn="True" TextWrapping="Wrap" Margin="0,4,0,10" VerticalScrollBarVisibility="Auto"/>
+
+        <Button x:Name="StartBtn" Content="Mulai transkripsi" Padding="8" Click="OnStart" IsEnabled="False"/>
+        <Button x:Name="CancelBtn" Content="Batalkan" Padding="8" Margin="0,6,0,0" Click="OnCancel" IsEnabled="False"/>
+        <ProgressBar x:Name="Progress" Height="8" Margin="0,10,0,0" Maximum="1"/>
+        <TextBlock x:Name="StatusLabel" Margin="0,6,0,14" TextWrapping="Wrap" Text="Siap."/>
+
+        <Separator/>
+        <TextBlock Text="Terjemahan (Claude AI)" FontWeight="SemiBold" Margin="0,10,0,4"/>
+        <PasswordBox x:Name="KeyBox" Margin="0,0,0,4"/>
+        <StackPanel Orientation="Horizontal">
+          <Button Content="Simpan key" Padding="8,3" Click="OnSaveKey"/>
+          <Button Content="Hapus" Padding="8,3" Margin="6,0,0,0" Click="OnRemoveKey"/>
+        </StackPanel>
+        <ComboBox x:Name="TargetBox" Margin="0,8,0,0"/>
+        <Button x:Name="TranslateBtn" Content="Terjemahkan" Padding="8" Margin="0,6,0,0" Click="OnTranslate" IsEnabled="False"/>
+        <TextBlock Text="Hanya teks transkrip yang dikirim ke Anthropic, bukan audionya." Foreground="Gray" TextWrapping="Wrap" Margin="0,4,0,0" FontSize="11"/>
+      </StackPanel>
+    </ScrollViewer>
+
+    <DockPanel Grid.Column="1">
+      <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+        <Button x:Name="ExportBtn" DockPanel.Dock="Right" Content="Ekspor…" Padding="10,3" Margin="6,0,0,0" Click="OnExport" IsEnabled="False"/>
+        <Button x:Name="CopyBtn" DockPanel.Dock="Right" Content="Salin" Padding="10,3" Margin="6,0,0,0" Click="OnCopy" IsEnabled="False"/>
+        <CheckBox x:Name="StampBox" DockPanel.Dock="Right" Content="Timestamp" IsChecked="True" VerticalAlignment="Center" Margin="6,0,0,0" Checked="OnStampChanged" Unchecked="OnStampChanged"/>
+        <TextBox x:Name="SearchBox" TextChanged="OnSearch" ToolTip="Cari di transkrip"/>
+      </DockPanel>
+      <TextBlock x:Name="LiveLabel" DockPanel.Dock="Bottom" Foreground="Gray" TextTrimming="CharacterEllipsis" Margin="0,6,0,0"/>
+      <ListBox x:Name="List" HorizontalContentAlignment="Stretch" MouseDoubleClick="OnSegmentPlay"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid Margin="2,3">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="56"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="{Binding Clock}" Foreground="SteelBlue" FontFamily="Consolas"/>
+              <TextBlock Grid.Column="1" Text="{Binding Display}" TextWrapping="Wrap"/>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
+  </Grid>
+</Window>

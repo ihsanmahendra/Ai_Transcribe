@@ -1,0 +1,40 @@
+name: Build Windows app
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths: ["windows/**", ".github/workflows/build-windows.yml"]
+  pull_request:
+    paths: ["windows/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Publish
+        run: >
+          dotnet publish windows/AITranscriber.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AITranscriber-Windows
+          path: out/AITranscriber.exe
+          if-no-files-found: error
+      - name: Rilis (saat push tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${{ github.ref_name }}-windows" out/AITranscriber.exe
+          --repo "${{ github.repository }}"
+          --title "AI Transcriber untuk Windows ${{ github.ref_name }}"
+          --notes "Unduh AITranscriber.exe lalu klik dua kali. Jika SmartScreen memperingatkan: Info lebih lanjut, lalu Tetap jalankan (aplikasi belum ditandatangani)."
