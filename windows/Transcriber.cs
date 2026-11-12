@@ -126,7 +126,7 @@ public class Transcriber
             {
                 detected ??= s.Language;
                 raw.Add(new(s.Start.TotalSeconds, s.End.TotalSeconds, s.Text,
-                    (float)Math.Log(Math.Max(1e-6, s.Probability)), s.NoSpeechProbability, 0));
+                    (float)Math.Log(Math.Max(1e-6, s.Probability)), 0f, 0f));
                 onLive(duration > 0 ? Math.Min(1, s.End.TotalSeconds / duration) : 0, s.Text.Trim());
             }
             return (TranscriptCleaner.Clean(raw), detected);
