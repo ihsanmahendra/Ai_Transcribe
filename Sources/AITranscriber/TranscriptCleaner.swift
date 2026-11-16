@@ -36,8 +36,9 @@ enum TranscriptCleaner {
             let key = normalized(text)
             guard !key.isEmpty else { continue }
 
-            // Bagian hening/musik dengan keyakinan rendah: hampir pasti karangan.
-            if seg.noSpeechProb > 0.5 && seg.avgLogprob < -0.8 { continue }
+            // Bagian hening/musik dengan keyakinan sangat rendah: hampir pasti karangan.
+            // Ambang sengaja longgar: pada audio kurang jelas ucapan asli pun berkeyakinan rendah.
+            if seg.noSpeechProb > 0.8 && seg.avgLogprob < -1.2 { continue }
 
             // Kalimat "penutup video" khas Whisper, hanya dibuang bila model tidak yakin.
             if hallucinationPhrases.contains(key), seg.avgLogprob < -0.4 || seg.noSpeechProb > 0.2 {
