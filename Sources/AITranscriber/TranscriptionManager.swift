@@ -142,6 +142,10 @@ final class TranscriptionManager: ObservableObject {
                 // diulang dengan temperature lebih tinggi (default WhisperKit: hingga 5x).
                 // Ini pengaman utama terhadap pengulangan kata, jadi tidak dikurangi.
                 options.suppressBlank = true
+                // Audio kurang jelas membuat keyakinan model rendah. Ambang bawaan terlalu galak:
+                // jendela berisi ucapan sungguhan dianggap hening/diulang dengan temperature tinggi.
+                options.noSpeechThreshold = 0.8
+                options.logProbThreshold = -1.5
                 if let decodeLanguage {
                     options.language = decodeLanguage
                     options.usePrefillPrompt = true
@@ -174,8 +178,12 @@ final class TranscriptionManager: ObservableObject {
                     }
                 }
 
+                // Muat audio, bersihkan dengung, dan naikkan volumenya bila pelan.
+                let rawAudio = try AudioProcessor.loadAudioAsFloatArray(fromPath: url.path)
+                let audio = AudioEnhancer.enhance(rawAudio)
+
                 let results = try await pipe.transcribe(
-                    audioPath: url.path,
+                    audioArray: audio,
                     decodeOptions: options,
                     callback: callback
                 )
